@@ -264,15 +264,14 @@ try {
             $LaunchArguments += "--xformers"
         }
 
-
-        # FP16 을 지원하지 않는 구형 GPU 에선 --no-half 인자가 필요함
-        if (!$cuda.half) {
-            $LaunchArguments += "--no-half"
-        }
-
         # TODO: --lowram 인자가 필요한지 확인하기
 
         if ($cuda -and ((python -c 'import torch; print(torch.cuda.is_available())') -eq "True")) {
+            # FP16 을 지원하지 않는 구형 GPU 에선 --no-half 인자가 필요함
+            if (!$cuda.half) {
+                $LaunchArguments += "--no-half"
+            }
+
             # VRAM 에 맞는 최적화 인자 적용하기
             switch ([math]::round($cuda.memory / 1024)) {
                 { $_ -lt 4 } {
