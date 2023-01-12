@@ -56,19 +56,7 @@ function Invoke-Aria2() {
 
     # Aria2 존재하는지 확인하기 없다면 설치하기
     if (!(Get-Command "aria2c.exe" -ErrorAction SilentlyContinue)) {
-        if (!(Test-Path "${CacheDir}/aria2")) {
-            Write-Output "Aria2 를 가져옵니다"
-
-            $p = if ([Environment]::Is64BitOperatingSystem)
-            { "https://github.com/aria2/aria2/releases/download/release-1.36.0/aria2-1.36.0-win-64bit-build1.zip" } else 
-            { "https://github.com/aria2/aria2/releases/download/release-1.36.0/aria2-1.36.0-win-32bit-build1.zip" }
-    
-            Invoke-WebRequest -Uri $p -OutFile "${TempDir}\aria2.zip"
-            Expand-Archive "${TempDir}\aria2.zip" "${TempDir}\aria2"
-            Move-Item "$(@(Get-ChildItem "${TempDir}\aria2")[0].FullName)" "${CacheDir}\aria2"
-        }
-
-        $env:Path = "${CacheDir}\aria2;${env:Path}"
+        Install-Aria2 -Apply
     }
 
     aria2c `
@@ -89,6 +77,107 @@ function Invoke-Aria2() {
     if (!$?) {
         throw "파일 다운로드 중 오류가 발생했습니다"
     }
+}
+
+function Install-Aria2() {
+    param(
+        [switch] $Force,
+        [switch] $Apply
+    )
+
+    if ($Force -or !(Test-Path "${CacheDir}\aria2")) {
+        Write-Output "Aria2 를 가져옵니다"
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "${CacheDir}\aria2"
+
+        $p = if ([Environment]::Is64BitOperatingSystem)
+        { "https://github.com/aria2/aria2/releases/download/release-1.36.0/aria2-1.36.0-win-64bit-build1.zip" } else 
+        { "https://github.com/aria2/aria2/releases/download/release-1.36.0/aria2-1.36.0-win-32bit-build1.zip" }
+
+        Invoke-WebRequest -Uri $p -OutFile "${TempDir}\aria2.zip"
+        Expand-Archive "${TempDir}\aria2.zip" "${TempDir}\aria2"
+        Move-Item "$(@(Get-ChildItem "${TempDir}\aria2")[0].FullName)" "${CacheDir}\aria2"
+    }
+
+    if ($Apply) {
+        $env:Path = "${CacheDir}\aria2;${env:Path}"
+    }
+}
+
+function Install-Python() {
+    param(
+        [switch] $Apply
+    )
+
+    if ([System.Windows.MessageBox]::Show(
+            "Python 3.10 설치를 진행하시겠습니까?`n환경 변수를 덮어쓰므로 다른 Python 버전이 설치된 환경이라면 취소한 뒤 수동으로 설치하고 작업을 다시 실행하는 것이 좋습니다.", 
+            "Python 설치", 
+            "YesNo", 
+            "Question"
+        ) -ne "Yes") {
+        throw "사용자에 의해 작업이 중단되었습니다"
+    }
+
+    Write-Output "Python 을 설치합니다"
+
+    $p = if ([Environment]::Is64BitOperatingSystem)
+    { "https://www.python.org/ftp/python/3.10.9/python-3.10.9-amd64.exe" } else 
+    { "https://www.python.org/ftp/python/3.10.9/python-3.10.9.exe" }
+
+    Invoke-Aria2 -Url $p -OutFile "${TempDir}\python.exe"
+
+    # https://docs.python.org/3.10/using/windows.html#installing-without-ui
+    Start-Process "${TempDir}\python.exe" `
+        -Wait `
+        -ArgumentList "/quiet AssociateFiles=0 PrependPath=1 Shortcuts=0 Include_doc=0 Include_launcher=0 InstallLauncherAllUsers=0 Include_tcltk=0 Include_test=0 Include_tools=0"
+
+    # 새로운 환경 변수로부터 python.exe 실행 경로 가져오기
+    if ($Apply) {
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    }
+}
+
+function Install-Git() {
+    param(
+        [switch] $Force,
+        [switch] $Apply
+    )
+    
+    if ($Force -or !(Test-Path "${CacheDir}/mingit")) {
+        Write-Output "Git 을 가져옵니다"
+
+        $p = if ([Environment]::Is64BitOperatingSystem)
+        { "https://github.com/git-for-windows/git/releases/download/v2.39.0.windows.2/MinGit-2.39.0.2-busybox-64-bit.zip" } else 
+        { "https://github.com/git-for-windows/git/releases/download/v2.39.0.windows.2/MinGit-2.39.0.2-busybox-32-bit.zip" }
+
+        Invoke-Aria2 -Url $p -OutFile "${TempDir}/mingit.zip"
+        Expand-Archive "${TempDir}/mingit.zip" "${CacheDir}/mingit"
+    }
+
+    if ($Apply) {
+        $env:Path = "${CacheDir}/mingit/cmd;${env:Path}"
+    }
+}
+
+function Get-CUDA() {
+    $cuda = if (Get-Command "nvidia-smi" -ErrorAction SilentlyContinue)
+    { nvidia-smi --query-gpu="index,name,compute_cap,memory.total" --format="csv,nounits" | ConvertFrom-Csv -ErrorAction SilentlyContinue } else
+    { $null }
+
+    if ($cuda) {
+        $cuda | Add-Member -NotePropertyName "half" -NotePropertyValue $false
+        $cuda | Add-Member -NotePropertyName "memory" -NotePropertyValue $cuda."memory.total [MiB]"
+    
+        try {
+            # FP16 은 5.3 부터 지원함
+            # https://en.wikipedia.org/wiki/CUDA#Data_types
+            $cuda.half = [int]($cuda.compute_cap.Replace(".", "")) -ge 53
+        }
+        catch {
+            Write-Error "CUDA 버전을 가져올 수 없습니다"
+        }
+    }
+
+    return $cuda
 }
 
 function Test-XFormersOperator() {
@@ -113,22 +202,12 @@ sys.exit(0 if all(x in ops for x in sys.argv[1:]) else 1)
     return $?
 }
 
-$cuda = (nvidia-smi --query-gpu="index,name,compute_cap,memory.total" --format="csv,nounits" | ConvertFrom-Csv -ErrorAction SilentlyContinue)
-
+$cuda = (Get-Cuda)
 if ($cuda) {
-    $cuda | Add-Member -NotePropertyName "half" -NotePropertyValue $false
-    $cuda | Add-Member -NotePropertyName "memory" -NotePropertyValue $cuda."memory.total [MiB]"
-
-    try {
-        # FP16 은 5.3 부터 지원함
-        # https://en.wikipedia.org/wiki/CUDA#Data_types
-        $cuda.half = [int]($cuda.compute_cap.Replace(".", "")) -ge 53
-    }
-    catch {
-        Write-Error "CUDA 버전을 가져올 수 없습니다"
-    }
-
     Write-Output "$($cuda.name) ($($cuda.compute_cap); VRAM $($cuda.memory) MiB)"
+}
+else {
+    Write-Output "NVIDIA GPU 를 찾을 수 없습니다"
 }
 
 try {
@@ -138,47 +217,16 @@ try {
     }
 
     # Python 존재하는지 확인하고 없다면 새로 설치하기
-    if (!(Get-Command "python" -ErrorAction SilentlyContinue) -or "$(python -V)" -notlike "Python 3.10*") {
-        Write-Output "Python 을 설치합니다"
-
-        if ([System.Windows.MessageBox]::Show(
-                "Python 3.10 를 설치합니다, 진행하시겠습니까?`n환경 변수를 덮어쓰므로 다른 Python 버전이 설치된 환경이라면 취소한 뒤 수동으로 설치하고 작업을 다시 실행하는 것이 좋습니다.", 
-                "Python 설치", 
-                "YesNo", 
-                "Question"
-            ) -ne "Yes") {
-            throw "사용자에 의해 작업이 중단되었습니다"
-        }
-
-        $p = if ([Environment]::Is64BitOperatingSystem)
-        { "https://www.python.org/ftp/python/3.10.9/python-3.10.9-amd64.exe" } else 
-        { "https://www.python.org/ftp/python/3.10.9/python-3.10.9.exe" }
-
-        Invoke-Aria2 -Url $p -OutFile "${TempDir}\python.exe"
-
-        # https://docs.python.org/3.10/using/windows.html#installing-without-ui
-        Start-Process "${TempDir}\python.exe" `
-            -Wait `
-            -ArgumentList "/quiet AssociateFiles=0 PrependPath=1 Shortcuts=0 Include_doc=0 Include_launcher=0 InstallLauncherAllUsers=0 Include_tcltk=0 Include_test=0 Include_tools=0"
-
-        # 새로운 환경 변수로부터 python.exe 실행 경로 가져오기
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $pythonVersion = if (Get-Command "python" -ErrorAction SilentlyContinue)
+    { "$(python -V)" } else
+    { $null }
+    if ($pythonVersion -notlike "Python 3.10*") {
+        Install-Python -Apply
     }
 
     # Git 존재하는지 확인하고 없다면 MinGit 설치하기
-    if (!(Get-Command "git.exe" -ErrorAction SilentlyContinue)) {
-        if (!(Test-Path "${CacheDir}/mingit")) {
-            Write-Output "Git 을 가져옵니다"
-
-            $p = if ([Environment]::Is64BitOperatingSystem)
-            { "https://github.com/git-for-windows/git/releases/download/v2.39.0.windows.2/MinGit-2.39.0.2-busybox-64-bit.zip" } else 
-            { "https://github.com/git-for-windows/git/releases/download/v2.39.0.windows.2/MinGit-2.39.0.2-busybox-32-bit.zip" }
-
-            Invoke-Aria2 -Url $p -OutFile "${TempDir}/mingit.zip"
-            Expand-Archive "${TempDir}/mingit.zip" "${CacheDir}/mingit"
-        }
-
-        $env:Path = "${CacheDir}/mingit/cmd;${env:Path}"
+    if (!(Get-Command "git" -ErrorAction SilentlyContinue)) {
+        Install-Git -Apply
     }
 
     # virtualenv 로 가상 환경 구성하기
