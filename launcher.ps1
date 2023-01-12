@@ -355,6 +355,9 @@ try {
     # 웹UI 실행하기
     python -m launch @LaunchArguments
 }
+catch {
+    Write-Error $_
+}
 finally {
     $defers | ForEach-Object { $_.Invoke() }
     Read-Host "엔터를 눌러 작업을 종료합니다"
