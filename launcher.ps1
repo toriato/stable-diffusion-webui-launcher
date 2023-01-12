@@ -351,7 +351,6 @@ try {
     if (!$LaunchArguments) {
         $LaunchArguments = @(
             "--skip-torch-cuda-test",
-            "--gradio-img2img-tool", "color-sketch",
             "--autolaunch"
         )
 
