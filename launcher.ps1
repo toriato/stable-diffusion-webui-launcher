@@ -395,7 +395,10 @@ try {
         }
         else {
             Write-Output "CPU 를 사용합니다"
-            $LaunchArguments += "--no-half"
+            $LaunchArguments += @(
+                "--opt-sub-quad-attention",
+                "--no-half"
+            )
         }
     }
 
