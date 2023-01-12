@@ -43,7 +43,9 @@ $defers = @(
 $env:LC_ALL = "C.UTF-8" # 한글 출력 깨짐 방지
 $env:HF_HOME = "${CacheDir}\huggingface" # HuggingFace 캐시 디렉터리 설정
 $ProgressPreference = "SilentlyContinue" # Invoke-WebRequest 진행 상황이 보여질시 속도가 매우 느려지므로 숨김
-Add-Type -AssemblyName PresentationCore, PresentationFramework # System.Windows.MessageBox
+
+Add-Type -AssemblyName PresentationCore, PresentationFramework
+$MessageBox = [System.Windows.MessageBox]
 
 function Invoke-Aria2() {
     param(
@@ -108,9 +110,9 @@ function Install-Python() {
         [switch] $Apply
     )
 
-    if ([System.Windows.MessageBox]::Show(
+    if ($MessageBox::Show(
             "Python 3.10 설치를 진행하시겠습니까?`n환경 변수를 덮어쓰므로 다른 Python 버전이 설치된 환경이라면 취소한 뒤 수동으로 설치하고 작업을 다시 실행하는 것이 좋습니다.", 
-            "Python 설치", 
+            "Launcher", 
             "YesNo", 
             "Question"
         ) -ne "Yes") {
@@ -156,6 +158,50 @@ function Install-Git() {
     if ($Apply) {
         $env:Path = "${CacheDir}/mingit/cmd;${env:Path}"
     }
+}
+
+function Update-Repository() {
+    param(
+        [string] $Path = (Get-Location),
+        [string] $TargetCommit
+    )
+
+    Push-Location $Path
+    $sha = (git rev-parse HEAD)
+    $branch = (git rev-parse --abbrev-ref HEAD)
+    Pop-Location
+
+    # 목표 커밋 값이 없다면 GitHub API 로 가장 최근 커밋 해시 가져오기
+    if (!$TargetCommit) {
+        # TODO: git 명령어로 GitHub API 에 사용할 수 있는 author, repo 값 동적으로 가져와야함
+        $response = (Invoke-RestMethod "https://api.github.com/repos/AUTOMATIC1111/stable-diffusion-webui/commits?sha=${branch}")
+        $TargetCommit = $response[0].sha
+    }
+
+    if ($sha -eq $TargetCommit) {
+        return $False
+    }
+
+    if ($MessageBox::Show(
+            "레포지토리가 오래된 것 같습니다, 업데이트를 진행할까요?`n로컬 커밋: ${sha}`n원격 커밋: $($response[0].sha)", 
+            "Launcher", 
+            "YesNo", 
+            "Question"
+        ) -ne "Yes") {
+        return $False
+    }
+
+    # 업데이트 진행하기
+    Push-Location $Path
+    git pull --quiet
+
+    if ($TargetCommit) {
+        Write-Output "레포지토리를 $($TargetCommit) 커밋으로 변경합니다"
+        git commit $TargetCommit
+    }
+    Pop-Location
+
+    return $True
 }
 
 function Get-CUDA() {
@@ -246,9 +292,11 @@ try {
     # 프로세스 종료 후 작업 디렉터리 원래대로 복구하기
     $defers += { Pop-Location }
 
+    # 레포지토리 속 .git 파일이 온전히 존재한다면 정상적으로 설치된 것으로 간주
+    # 존재하지 않으면 레포지토리 새로 클론하고 종속성 패키지 설치 등 초기화 진행하기
     if (Test-Path "${RepoDir}\.git") {
-        # 레포지토리 속 .git 파일이 온전히 존재한다면 정상적으로 설치된 것으로 간주하기
         Push-Location $RepoDir
+        Update-Repository
     }
     else {
         Write-Output "레포지토리를 가져옵니다"
