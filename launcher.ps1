@@ -296,7 +296,7 @@ try {
     # 존재하지 않으면 레포지토리 새로 클론하고 종속성 패키지 설치 등 초기화 진행하기
     if (Test-Path "${RepoDir}\.git") {
         Push-Location $RepoDir
-        Update-Repository
+        Update-Repository | Out-Null
     }
     else {
         Write-Output "레포지토리를 가져옵니다"
