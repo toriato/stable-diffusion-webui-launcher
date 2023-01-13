@@ -345,8 +345,6 @@ try {
         }
     }
 
-    $xformers = (Test-XFormersOperator)
-
     # 실행 인자 만들기
     if (!$LaunchArguments) {
         $LaunchArguments = @(
@@ -354,17 +352,17 @@ try {
             "--autolaunch"
         )
 
-        # xformers 사용 가능하다면 인자 추가하기
-        if ($xformers) {
-            $LaunchArguments += "--xformers"
-        }
-
         # TODO: --lowram 인자가 필요한지 확인하기
 
         if ($cuda -and ((python -c 'import torch; print(torch.cuda.is_available())') -eq "True")) {
             # FP16 을 지원하지 않는 구형 GPU 에선 --no-half 인자가 필요함
             if (!$cuda.half) {
                 $LaunchArguments += "--no-half"
+            }
+
+            # xformers 사용 가능하다면 인자 추가하기
+            if (Test-XFormersOperator) {
+                $LaunchArguments += "--xformers"
             }
 
             # VRAM 에 맞는 최적화 인자 적용하기
