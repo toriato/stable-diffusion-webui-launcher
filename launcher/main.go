@@ -55,7 +55,7 @@ func main() {
 		},
 	}
 	// 0xc000013a = STATUS_CONTROL_C_EXIT
-	if err := cmd.Run(); err != nil && err.Error() == "0xc000013a" {
+	if err := cmd.Run(); err != nil && err.Error() != "0xc000013a" {
 		MessageBoxPanic("스크립트 실행 중 오류가 발생했습니다", err)
 	}
 }
