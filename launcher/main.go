@@ -38,7 +38,11 @@ func main() {
 		}
 	}
 
-	args := []string{"-NoLogo", "-NoProfile", "-File", scriptPath}
+	args := []string{
+		"-NoLogo",
+		"-NoProfile",
+		"-ExecutionPolicy", "Bypass",
+		"-File", scriptPath}
 	args = append(args, os.Args[1:]...)
 
 	ps, err := exec.LookPath("powershell.exe")
