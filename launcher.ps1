@@ -309,11 +309,6 @@ try {
         $defers += { deactivate }
     }
 
-    $cuda = (Get-Cuda)
-    if ($cuda) {
-        Write-Output "$($cuda.name) ($($cuda.major).$($cuda.minor); VRAM $($cuda.total_memory / 1MB) MiB)"
-    }
-
     # 프로세스 종료 후 작업 디렉터리 원래대로 복구하기
     $defers += { Pop-Location }
 
@@ -352,6 +347,15 @@ try {
             torch==1.13.1 xformers `
             --requirement .\requirements.txt `
     
+    }
+
+    # CUDA 정보 가져오기
+    $cuda = (Get-Cuda)
+    if ($cuda) {
+        Write-Output "$($cuda.name) ($($cuda.major).$($cuda.minor); VRAM $($cuda.total_memory / 1MB) MiB)"
+    }
+    else {
+        Write-Output "CUDA 코어가 있는 GPU 를 찾을 수 없습니다"
     }
 
     # 모델 파일 존재하지 않으면 기본 모델 받아오기
