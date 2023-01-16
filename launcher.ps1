@@ -101,7 +101,7 @@ function Install-Aria2() {
     }
 
     if ($Apply) {
-        $env:Path = "${CacheDir}\aria2;${env:Path}"
+        $env:PATH = "${CacheDir}\aria2;${env:PATH}"
     }
 }
 
@@ -134,7 +134,7 @@ function Install-Python() {
 
     # 새로운 환경 변수로부터 python.exe 실행 경로 가져오기
     if ($Apply) {
-        $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "User")
+        $env:PATH = [System.Environment]::GetEnvironmentVariable("Path", "User")
     }
 }
 
@@ -143,8 +143,10 @@ function Install-Git() {
         [switch] $Force,
         [switch] $Apply
     )
+
+    $gitDir = "${CacheDir}\mingit"
     
-    if ($Force -or !(Test-Path "${CacheDir}\mingit")) {
+    if ($Force -or !(Test-Path $gitDir)) {
         Write-Output "Git 을 가져옵니다"
 
         $p = if ([Environment]::Is64BitOperatingSystem)
@@ -152,17 +154,18 @@ function Install-Git() {
         { "https://github.com/git-for-windows/git/releases/download/v2.39.0.windows.2/MinGit-2.39.0.2-busybox-32-bit.zip" }
 
         Invoke-Aria2 -Url $p -OutFile "${TempDir}\mingit.zip"
-        Expand-Archive "${TempDir}\mingit.zip" "${CacheDir}\mingit"
+        Expand-Archive "${TempDir}\mingit.zip" $gitDir
     }
 
     if ($Apply) {
-        $env:Path = "${CacheDir}\mingit\cmd;${env:Path}"
+        $env:PATH = "${gitDir}\cmd;${env:PATH}"
+        $env:GIT_CONFIG_GLOBAL = "${gitDir}\.gitconfig"
 
         $mingwDir = if ([Environment]::Is64BitOperatingSystem)
         { "mingw64" } else
         { "mingw32" }
 
-        git config --worktree http.sslcainfo "${CacheDir}\mingit\${mingwDir}\ssl\certs\ca-bundle.crt"
+        git config --global http.sslcainfo "${gitDir}\${mingwDir}\ssl\certs\ca-bundle.crt"
     }
 }
 
@@ -203,7 +206,9 @@ function Update-Repository() {
 
     if ($TargetCommit) {
         Write-Output "레포지토리를 $($TargetCommit) 커밋으로 변경합니다"
-        git commit $TargetCommit
+        # TODO: 변경점이 있다면 사용자에게 물어보고 업데이트 취소하거나 변경점 버리기
+        git stash --quiet
+        git checkout $TargetCommit
     }
     Pop-Location
 
@@ -211,22 +216,37 @@ function Update-Repository() {
 }
 
 function Get-CUDA() {
-    $cuda = if (Get-Command "nvidia-smi" -ErrorAction SilentlyContinue)
-    { nvidia-smi --query-gpu="index,name,compute_cap,memory.total" --format="csv,nounits" | ConvertFrom-Csv -ErrorAction SilentlyContinue } else
-    { $null }
+    $raw = python -c "
+import sys
+import io
+from csv import DictWriter
+from torch import cuda
+props = cuda.get_device_properties(cuda.current_device())
+kv = { k: getattr(props, k) for k in ['name', 'major', 'minor', 'total_memory'] }
+output = io.StringIO()
+writer = DictWriter(output, kv.keys())
+writer.writeheader()
+writer.writerow(kv)
+print(output.getvalue().strip())
+"
+    if (!$?) {
+        return;
+    }
 
-    if ($cuda) {
-        $cuda | Add-Member -NotePropertyName "half" -NotePropertyValue $false
-        $cuda | Add-Member -NotePropertyName "memory" -NotePropertyValue $cuda."memory.total [MiB]"
-    
-        try {
-            # FP16 은 5.3 부터 지원함
-            # https://en.wikipedia.org/wiki/CUDA#Data_types
-            $cuda.half = [int]($cuda.compute_cap.Replace(".", "")) -ge 53
-        }
-        catch {
-            Write-Error "CUDA 버전을 가져올 수 없습니다"
-        }
+    $cuda = $raw | ConvertFrom-Csv
+    if (!$cuda) {
+        return;
+    }
+
+    $cuda | Add-Member -NotePropertyName "half" -NotePropertyValue $false
+
+    try {
+        # FP16 은 5.3 부터 지원함
+        # https://en.wikipedia.org/wiki/CUDA#Data_types
+        $cuda.half = [int]("$($cuda.major)$($cuda.minor)") -ge 53
+    }
+    catch {
+        Write-Error "CUDA 버전을 가져올 수 없습니다"
     }
 
     return $cuda
@@ -252,14 +272,6 @@ sys.exit(0 if all(x in ops for x in sys.argv[1:]) else 1)
 " @OperatorNames
 
     return $?
-}
-
-$cuda = (Get-Cuda)
-if ($cuda) {
-    Write-Output "$($cuda.name) ($($cuda.compute_cap); VRAM $($cuda.memory) MiB)"
-}
-else {
-    Write-Output "NVIDIA GPU 를 찾을 수 없습니다"
 }
 
 try {
@@ -293,6 +305,11 @@ try {
         # 프로세스 종료 후 가상 환경 종료하기
         Invoke-Expression "${_}\Scripts\Activate.ps1"
         $defers += { deactivate }
+    }
+
+    $cuda = (Get-Cuda)
+    if ($cuda) {
+        Write-Output "$($cuda.name) ($($cuda.major).$($cuda.minor); VRAM $($cuda.total_memory / 1MB) MiB)"
     }
 
     # 프로세스 종료 후 작업 디렉터리 원래대로 복구하기
@@ -372,7 +389,7 @@ try {
             }
 
             # VRAM 에 맞는 최적화 인자 적용하기
-            switch ([math]::round($cuda.memory / 1024)) {
+            switch ([math]::round($cuda.total_memory / 1GB)) {
                 { $_ -lt 4 } {
                     # VRAM 이 4GB 미만일 때
                     Write-Output "VRAM 이 매우 낮습니다, 최적화 인자를 사용합니다"
