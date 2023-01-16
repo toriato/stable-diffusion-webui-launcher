@@ -144,19 +144,25 @@ function Install-Git() {
         [switch] $Apply
     )
     
-    if ($Force -or !(Test-Path "${CacheDir}/mingit")) {
+    if ($Force -or !(Test-Path "${CacheDir}\mingit")) {
         Write-Output "Git 을 가져옵니다"
 
         $p = if ([Environment]::Is64BitOperatingSystem)
         { "https://github.com/git-for-windows/git/releases/download/v2.39.0.windows.2/MinGit-2.39.0.2-busybox-64-bit.zip" } else 
         { "https://github.com/git-for-windows/git/releases/download/v2.39.0.windows.2/MinGit-2.39.0.2-busybox-32-bit.zip" }
 
-        Invoke-Aria2 -Url $p -OutFile "${TempDir}/mingit.zip"
-        Expand-Archive "${TempDir}/mingit.zip" "${CacheDir}/mingit"
+        Invoke-Aria2 -Url $p -OutFile "${TempDir}\mingit.zip"
+        Expand-Archive "${TempDir}\mingit.zip" "${CacheDir}\mingit"
     }
 
     if ($Apply) {
-        $env:Path = "${CacheDir}/mingit/cmd;${env:Path}"
+        $env:Path = "${CacheDir}\mingit\cmd;${env:Path}"
+
+        $mingwDir = if ([Environment]::Is64BitOperatingSystem)
+        { "mingw64" } else
+        { "mingw32" }
+
+        git config --worktree http.sslcainfo "${CacheDir}\mingit\${mingwDir}\ssl\certs\ca-bundle.crt"
     }
 }
 
