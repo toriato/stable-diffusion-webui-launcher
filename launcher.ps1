@@ -37,7 +37,7 @@
 # 프로세스 종료 후 실행할 작업들
 $defers = @(
     # 임시 디렉터리 제거하기
-    { Remove-Item -Recurse -Force $TempDir }
+    { Remove-Item -Recurse -Force "$TempDir" }
 )
 
 $env:LC_ALL = "C.UTF-8" # 한글 출력 깨짐 방지
@@ -146,7 +146,7 @@ function Install-Git() {
 
     $gitDir = "${CacheDir}\mingit"
     
-    if ($Force -or !(Test-Path $gitDir)) {
+    if ($Force -or !(Test-Path "${gitDir}")) {
         Write-Output "Git 을 가져옵니다"
 
         $p = if ([Environment]::Is64BitOperatingSystem)
@@ -154,7 +154,7 @@ function Install-Git() {
         { "https://github.com/git-for-windows/git/releases/download/v2.39.0.windows.2/MinGit-2.39.0.2-busybox-32-bit.zip" }
 
         Invoke-Aria2 -Url $p -OutFile "${TempDir}\mingit.zip"
-        Expand-Archive "${TempDir}\mingit.zip" $gitDir
+        Expand-Archive "${TempDir}\mingit.zip" "${gitDir}"
     }
 
     if ($Apply) {
@@ -218,16 +218,18 @@ function Update-Repository() {
 function Get-CUDA() {
     $raw = python -c "
 import sys
-import io
-from csv import DictWriter
-from torch import cuda
-props = cuda.get_device_properties(cuda.current_device())
-kv = { k: getattr(props, k) for k in ['name', 'major', 'minor', 'total_memory'] }
-output = io.StringIO()
-writer = DictWriter(output, kv.keys())
-writer.writeheader()
-writer.writerow(kv)
-print(output.getvalue().strip())
+try:
+    import io
+    from csv import DictWriter
+    from torch import cuda
+    props = cuda.get_device_properties(cuda.current_device())
+    kv = { k: getattr(props, k) for k in ['name', 'major', 'minor', 'total_memory'] }
+    output = io.StringIO()
+    writer = DictWriter(output, kv.keys())
+    writer.writeheader()
+    writer.writerow(kv)
+    print(output.getvalue().strip())
+except: sys.exit(1)
 "
     if (!$?) {
         return;
@@ -276,8 +278,8 @@ sys.exit(0 if all(x in ops for x in sys.argv[1:]) else 1)
 
 try {
     # 캐시 디렉터리 만들기
-    if (!(Test-Path $CacheDir)) {
-        New-Item $CacheDir -ItemType Directory | Out-Null
+    if (!(Test-Path "$CacheDir")) {
+        New-Item "$CacheDir" -ItemType Directory | Out-Null
     }
 
     # Python 존재하는지 확인하고 없다면 새로 설치하기
@@ -318,14 +320,14 @@ try {
     # 레포지토리 속 .git 파일이 온전히 존재한다면 정상적으로 설치된 것으로 간주
     # 존재하지 않으면 레포지토리 새로 클론하고 종속성 패키지 설치 등 초기화 진행하기
     if (Test-Path "${RepoDir}\.git") {
-        Push-Location $RepoDir
+        Push-Location "$RepoDir"
         Update-Repository | Out-Null
     }
     else {
         Write-Output "레포지토리를 가져옵니다"
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $RepoDir
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue "$RepoDir"
         git clone --quiet --depth=1 "https://github.com/AUTOMATIC1111/stable-diffusion-webui.git" "$RepoDir"
-        Push-Location $RepoDir
+        Push-Location "$RepoDir"
   
         # 확장 기능 가져오기
         Write-Output "확장 기능을 가져옵니다"
@@ -333,7 +335,7 @@ try {
         try {
             $DefaultExtensions | ForEach-Object { 
                 Write-Output $_
-                git clone --quiet --depth=1 $_ 
+                git clone --quiet --depth=1 "$_" 
             }
         }
         finally {
