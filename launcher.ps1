@@ -209,7 +209,9 @@ function Update-Repository() {
         # TODO: 변경점이 있다면 사용자에게 물어보고 업데이트 취소하거나 변경점 버리기
         git stash --quiet
         git checkout $TargetCommit
+        pip install --upgrade --prefer-binary requirements.txt
     }
+
     Pop-Location
 
     return $True
