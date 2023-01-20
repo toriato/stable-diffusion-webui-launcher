@@ -310,7 +310,7 @@ try {
         }
 
         # 프로세스 종료 후 가상 환경 종료하기
-        Invoke-Expression "`"${_}\Scripts\Activate.ps1`""
+        & "${_}\Scripts\Activate.ps1"
         $defers += { deactivate }
     }
 
