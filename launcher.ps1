@@ -159,7 +159,6 @@ function Install-Git() {
 
     if ($Apply) {
         $env:PATH = "${gitDir}\cmd;${env:PATH}"
-        $env:GIT_CONFIG_GLOBAL = "${gitDir}\.gitconfig"
 
         $mingwDir = if ([Environment]::Is64BitOperatingSystem)
         { "mingw64" } else
@@ -296,9 +295,16 @@ try {
     }
 
     # Git 존재하는지 확인하고 없다면 MinGit 설치하기
+    $env:GIT_CONFIG_GLOBAL = "${CacheDir}\.gitconfig"
     if (!(Get-Command "git" -ErrorAction SilentlyContinue)) {
         Install-Git -Apply
     }
+
+    # Git 보안(권한) 관련 설정 변경하기
+    # 다른 사용자로 실행하면 오류가 발생할 수 있기 때문에 safe.directory 를 풀어줘야함
+    # https://stackoverflow.com/a/71904131
+    # https://github.com/git/git/commit/8959555cee7ec045958f9b6dd62e541affb7e7d9
+    git config --global safe.directory '*'
 
     # virtualenv 로 가상 환경 구성하기
     # TODO: 잘못된 python 실행 경로를 가르킬 수 있으므로 확인해야함
