@@ -25,15 +25,15 @@
     [hashtable[]] $DefaultModelFiles = @(
         @{
             Url     = "https://huggingface.co/saltacc/wd-1-4-anime/resolve/main/wd-1-4-epoch2-fp16.safetensors"
-            OutFile = "${RepoDir}\models\Stable-diffusion"
+            OutFile = "${RepoDir}\models\Stable-diffusion\wd-1-4-epoch2-fp16.safetensors"
         },
         @{
             Url = "https://huggingface.co/saltacc/wd-1-4-anime/resolve/main/wd-1-4-epoch2-fp16.yaml"
-            OutFile = "${RepoDir}\models\Stable-diffusion"
+            OutFile = "${RepoDir}\models\Stable-diffusion\wd-1-4-epoch2-fp16.yaml"
         },
         @{
             Url     = "https://huggingface.co/saltacc/wd-1-4-anime/resolve/main/VAE/kl-f8-anime2.ckpt"
-            OutFile = "${RepoDir}\models\VAE"
+            OutFile = "${RepoDir}\models\VAE\kl-f8-anime2.ckpt"
         }
     )
 )
