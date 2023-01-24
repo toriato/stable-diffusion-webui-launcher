@@ -1,2 +1,2 @@
 @echo off
-go build -o ../launcher.exe -ldflags "-w -H=windowsgui" .
+go build -o ../launcher.exe -ldflags "-w" .
