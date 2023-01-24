@@ -24,12 +24,16 @@
     [Parameter(HelpMessage = "첫 설치시 가져올 모델 파일")]
     [hashtable[]] $DefaultModelFiles = @(
         @{
-            Url     = "https://huggingface.co/Linaqruf/anything-v3.0/resolve/main/Anything-V3.0-pruned-fp16.safetensors"
-            OutFile = "${RepoDir}\models\Stable-diffusion\Anything-V3.0-pruned-fp16.safetensors"
+            Url     = "https://huggingface.co/saltacc/wd-1-4-anime/resolve/main/wd-1-4-epoch2-fp16.safetensors"
+            OutFile = "${RepoDir}\models\Stable-diffusion"
         },
         @{
-            Url     = "https://huggingface.co/Linaqruf/anything-v3.0/resolve/main/Anything-V3.0.vae.pt"
-            OutFile = "${RepoDir}\models\VAE\Anything-V3.0.vae.pt"
+            Url = "https://huggingface.co/saltacc/wd-1-4-anime/resolve/main/wd-1-4-epoch2-fp16.yaml"
+            OutFile = "${RepoDir}\models\Stable-diffusion"
+        },
+        @{
+            Url     = "https://huggingface.co/saltacc/wd-1-4-anime/resolve/main/VAE/kl-f8-anime2.ckpt"
+            OutFile = "${RepoDir}\models\VAE"
         }
     )
 )
@@ -61,20 +65,29 @@ function Invoke-Aria2() {
         Install-Aria2 -Apply
     }
 
-    aria2c `
-        --continue `
-        --always-resume `
-        --console-log-level warn `
-        --disk-cache 64M `
-        --min-split-size 8M `
-        --max-concurrent-downloads 8 `
-        --max-connection-per-server 8 `
-        --max-overall-download-limit 0 `
-        --max-download-limit 0 `
-        --split 8 `
-        --dir "$(Split-Path $OutFile -Parent)" `
-        --out "$(Split-Path $OutFile -Leaf)" `
-        "$Url"
+    $arguments = @(
+        '--continue',
+        '--always-resume',
+        '--console-log-level', 'warn',
+        '--disk-cache', '64M',
+        '--min-split-size', '8M',
+        '--max-concurrent-downloads', '8',
+        '--max-connection-per-server', '8',
+        '--max-overall-download-limit', '0',
+        '--max-download-limit', '0',
+        '--split', '8'
+    )
+
+    if (Test-Path -Path "${OutFile}" -PathType Container) {
+        $arguments += @('--dir', $OutFile)
+    } else {
+        $arguments += @(
+            '--dir', "$(Split-Path $OutFile -Parent)",
+            '--out', "$(Split-Path $OutFile -Leaf)"
+        )
+    }
+
+    aria2c @arguments $Url
     
     if (!$?) {
         throw "파일 다운로드 중 오류가 발생했습니다"
