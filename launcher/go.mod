@@ -1,4 +1,4 @@
-module github.com/toriato/easy-stable-diffusion/windows/helper
+module github.com/toriato/stable-diffusion-webui-launcher/launcher
 
 go 1.19
 
