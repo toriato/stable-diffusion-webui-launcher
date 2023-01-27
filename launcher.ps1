@@ -44,7 +44,10 @@ $defers = @(
     { Remove-Item -Recurse -Force "$TempDir" }
 )
 
-$env:LC_ALL = "C.UTF-8" # 한글 출력 깨짐 방지
+# 한글 출력 깨짐 방지
+$env:LC_ALL = "C.UTF-8"
+$OutputEncoding = [console]::InputEncoding = [console]::OutputEncoding = New-Object System.Text.UTF8Encoding
+
 $env:HF_HOME = "${CacheDir}\huggingface" # HuggingFace 캐시 디렉터리 설정
 $ProgressPreference = "SilentlyContinue" # Invoke-WebRequest 진행 상황이 보여질시 속도가 매우 느려지므로 숨김
 
