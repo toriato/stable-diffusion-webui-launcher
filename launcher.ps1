@@ -28,7 +28,7 @@
             OutFile = "${RepoDir}\models\Stable-diffusion\wd-1-4-epoch2-fp16.safetensors"
         },
         @{
-            Url = "https://huggingface.co/saltacc/wd-1-4-anime/resolve/main/wd-1-4-epoch2-fp16.yaml"
+            Url     = "https://huggingface.co/saltacc/wd-1-4-anime/resolve/main/wd-1-4-epoch2-fp16.yaml"
             OutFile = "${RepoDir}\models\Stable-diffusion\wd-1-4-epoch2-fp16.yaml"
         },
         @{
@@ -83,7 +83,8 @@ function Invoke-Aria2() {
 
     if (Test-Path -Path "${OutFile}" -PathType Container) {
         $arguments += @('--dir', $OutFile)
-    } else {
+    }
+    else {
         $arguments += @(
             '--dir', "$(Split-Path $OutFile -Parent)",
             '--out', "$(Split-Path $OutFile -Leaf)"
@@ -227,6 +228,7 @@ function Update-Repository() {
         pip install `
             --upgrade `
             --prefer-binary `
+            --no-cache-dir `
             --requirement .\requirements.txt
     }
 
@@ -370,6 +372,7 @@ try {
         pip install `
             --pre `
             --prefer-binary `
+            --no-cache-dir `
             --extra-index-url https://download.pytorch.org/whl/cu116 `
             torch==1.13.1 xformers `
             --requirement .\requirements.txt `
